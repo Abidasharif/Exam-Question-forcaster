@@ -1,0 +1,401 @@
+{
+  "name": "Predictive Exam Question Forecaster with Google Gemini RAG",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "14iO19Qx4TGVPm1P1Bz1b8jFI_EhrjI_Y",
+          "mode": "list",
+          "cachedResultName": "Past Papers",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/14iO19Qx4TGVPm1P1Bz1b8jFI_EhrjI_Y"
+        },
+        "event": "fileCreated",
+        "options": {
+          "fileType": "all"
+        }
+      },
+      "id": "4648831c-3695-4e6b-a978-191eb294f9be",
+      "name": "New PDF Uploaded",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        -32
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ER6R4i0m6cD47KCK",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.id }}"
+        },
+        "options": {}
+      },
+      "id": "a002f47b-7adb-4673-aa7a-aa02932057cd",
+      "name": "Download PDF File",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        208,
+        -32
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ER6R4i0m6cD47KCK",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "7f23b18a-db56-4695-88c8-15f0a2abf0ce",
+      "name": "Extract Text from PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        432,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "chunkSize": 800,
+        "chunkOverlap": 150,
+        "options": {}
+      },
+      "id": "cb9ba0ae-bc0c-4055-9666-dbbb21b825d6",
+      "name": "Recursive Text Splitter",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        864,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.text }}",
+        "textSplittingMode": "custom",
+        "options": {}
+      },
+      "id": "233a2d5f-fe7d-4ad6-a149-b30a1ee8afb5",
+      "name": "Document Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        784,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-embedding-001"
+      },
+      "id": "fe533095-7db1-4fcc-859a-4a2410203e00",
+      "name": "Google Gemini Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        656,
+        192
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "QC3vIXEt9MDKwkRA",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "3a232927-9511-4bd1-96da-2d2c5a5ba488",
+      "name": "Student Chat Interface",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -16,
+        608
+      ],
+      "webhookId": "b93a0a95-790e-4551-bf4c-dd13128c5eaf"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "31c1e26a-8dda-42cb-844b-b27523c57de5",
+      "name": "Gemini 1.5 Pro Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        208,
+        832
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "MQ7jiajrhQHsdspv",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 10
+      },
+      "id": "ea0c5e71-fe33-4756-880b-4c7c7a886698",
+      "name": "Conversation Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        336,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are an AI Exam Predictor for the Punjab Board Matric examinations. Your role is to help students prepare by analyzing historical exam patterns and predicting likely questions.\n\nWhen a student asks about a topic:\n\n1. Use the search_past_papers tool to find all instances of that topic in past papers\n2. Analyze the data to identify:\n   - Total appearances across years\n   - Frequency pattern (e.g., appears every 2 years, every 3 years)\n   - Most recent appearance\n   - Question types (Short Question vs Long Question)\n   - Subject and chapter context\n\n3. Calculate probability using this formula:\n   P(topic) = (Total Appearances / Total Years Sampled) × Recency Weight\n   \n   Where Recency Weight:\n   - If appeared in last year: 0.7\n   - If appeared 2 years ago: 1.0\n   - If appeared 3+ years ago: 1.3\n   - If missing for 4+ years: 1.5\n\n4. Present your findings:\n   - List the Top 5 Most Likely Questions for the upcoming exam\n   - Include confidence percentage for each\n   - Specify expected question type (Short/Long)\n   - Explain the pattern (e.g., \"This topic appears every 2 years and was last seen in 2023, making it highly likely for 2025\")\n\n5. Provide strategic study advice based on the patterns\n\nBe conversational, encouraging, and data-driven in your responses. Help students focus their preparation efficiently."
+        }
+      },
+      "id": "5ca96146-edd0-4817-bc62-988e5cb55cde",
+      "name": "Predictive Exam Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        256,
+        608
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "90c729b5-1a7e-44bb-9139-1d64ff0aa9a9",
+      "name": "Google Gemini Embeddings for Retrieval",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        544,
+        1040
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "QC3vIXEt9MDKwkRA",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "embeddingBatchSize": 1000,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        704,
+        -32
+      ],
+      "id": "a59ba1bc-e5da-4362-93c6-212ffe2373e0",
+      "name": "Supabase Vector Store",
+      "credentials": {
+        "supabaseApi": {
+          "id": "nMdvFz6FZfu5LlHX",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Use this to search past Matric papers from Punjab Board. It returns the question text, year it appeared, subject, chapter, and question type. Essential for analyzing historical patterns and predicting likely exam questions.",
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "topK": 200,
+        "options": {
+          "queryName": "Matric Papers"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        512,
+        752
+      ],
+      "id": "521992cd-7450-4766-9861-55302246da0e",
+      "name": "Supabase Vector Store1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "nMdvFz6FZfu5LlHX",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "New PDF Uploaded": {
+      "main": [
+        [
+          {
+            "node": "Download PDF File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF File": {
+      "main": [
+        [
+          {
+            "node": "Extract Text from PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text from PDF": {
+      "main": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Document Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Document Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Student Chat Interface": {
+      "main": [
+        [
+          {
+            "node": "Predictive Exam Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini 1.5 Pro Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Predictive Exam Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conversation Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Predictive Exam Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Embeddings for Retrieval": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store1",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Vector Store1": {
+      "ai_tool": [
+        [
+          {
+            "node": "Predictive Exam Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2aa2ca8f-911a-487d-b542-e38ae17872cc",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b4f6ad7a98b19ec05b674cd907d3481d06c5e77c6d7df6a193309d5c19a702b4"
+  },
+  "id": "sHR4Y4puFMBoyy4Q",
+  "tags": []
+}
